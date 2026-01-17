@@ -1,4 +1,4 @@
-// src/index.ts
+// src/index.ts - 修复版
 export interface Env {
   DEEPSEEK_API_KEY: string;
 }
@@ -17,51 +17,32 @@ export default {
 
     // 处理OPTIONS预检请求
     if (request.method === 'OPTIONS') {
-      return new Response(null, {
-        headers: corsHeaders,
-        status: 204,
+      return new Response(null, { headers: corsHeaders, status: 204 });
+    }
+
+    // 根路径返回JSON
+    if (path === '/') {
+      return new Response(JSON.stringify({
+        success: true,
+        message: 'AI.AMASSWIN.COM API 服务运行中',
+        version: '1.0.0',
+        endpoints: ['/health', '/api/chat', '/api/models']
+      }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 200
       });
     }
 
-    // 根路径 - 返回JSON格式
-    if (path === '/') {
-      return new Response(
-        JSON.stringify({
-          success: true,
-          message: 'AI.AMASSWIN.COM API 服务运行中',
-          version: '1.0.0',
-          endpoints: {
-            health: '/health',
-            chat: '/api/chat',
-            models: '/api/models'
-          }
-        }),
-        {
-          status: 200,
-          headers: {
-            ...corsHeaders,
-            'Content-Type': 'application/json',
-          },
-        }
-      );
-    }
-
-    // 健康检查 - 返回JSON格式
+    // 健康检查
     if (path === '/health') {
-      return new Response(
-        JSON.stringify({
-          status: 'OK',
-          service: 'AI.AMASSWIN.COM API',
-          timestamp: new Date().toISOString(),
-        }),
-        {
-          status: 200,
-          headers: {
-            ...corsHeaders,
-            'Content-Type': 'application/json',
-          },
-        }
-      );
+      return new Response(JSON.stringify({
+        status: 'OK',
+        service: 'AI.AMASSWIN.COM API',
+        timestamp: new Date().toISOString()
+      }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 200
+      });
     }
 
     // AI聊天接口
@@ -70,19 +51,13 @@ export default {
         const { message, model = 'deepseek-chat' } = await request.json();
         
         if (!message) {
-          return new Response(
-            JSON.stringify({
-              success: false,
-              error: '消息内容不能为空',
-            }),
-            {
-              status: 400,
-              headers: {
-                ...corsHeaders,
-                'Content-Type': 'application/json',
-              },
-            }
-          );
+          return new Response(JSON.stringify({
+            success: false,
+            error: '消息内容不能为空'
+          }), {
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+            status: 400
+          });
         }
 
         // 调用DeepSeek API
@@ -90,14 +65,14 @@ export default {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'Authorization': `Bearer ${env.DEEPSEEK_API_KEY}`,
+            'Authorization': `Bearer ${env.DEEPSEEK_API_KEY}`
           },
           body: JSON.stringify({
             model: model,
             messages: [
               {
                 role: 'system',
-                content: '你是一个有帮助的AI助手。请用中文回答用户的问题，回答要详细、准确、友好。'
+                content: '你是AI.AMASSWIN.COM的智能助手，请用中文回答用户问题'
               },
               {
                 role: 'user',
@@ -105,9 +80,8 @@ export default {
               }
             ],
             max_tokens: 2000,
-            temperature: 0.7,
-            stream: false
-          }),
+            temperature: 0.7
+          })
         });
 
         if (!response.ok) {
@@ -116,90 +90,50 @@ export default {
 
         const data = await response.json();
         
-        return new Response(
-          JSON.stringify({
-            success: true,
-            data: {
-              response: data.choices[0].message.content,
-              model: model,
-              tokens: data.usage.total_tokens,
-              timestamp: new Date().toISOString(),
-            },
-          }),
-          {
-            status: 200,
-            headers: {
-              ...corsHeaders,
-              'Content-Type': 'application/json',
-            },
-          }
-        );
-      } catch (error) {
-        console.error('API错误:', error);
-        
-        return new Response(
-          JSON.stringify({
-            success: false,
-            error: error.message || '处理请求时发生错误',
-            timestamp: new Date().toISOString(),
-          }),
-          {
-            status: 500,
-}}: 
-              ...corsHeaders,
-              'Content-Type': 'application/json',
-            },
-          }
-        );
-      }
-    }
-
-    // 返回模型列表
-    if (path === '/api/models' && request.method === 'GET') {
-      const models = [
-        {
-          id: 'deepseek-chat',
-          name: 'DeepSeek Chat',
-          provider: 'deepseek',
-          description: '免费中文模型，支持128K上下文',
-        },
-        {
-          id: 'deepseek-coder',
-          name: 'DeepSeek Coder',
-          provider: 'deepseek',
-          description: '专为编程优化的模型',
-        },
-      ];
-      
-      return new Response(
-        JSON.stringify({
+        return new Response(JSON.stringify({
           success: true,
-          data: models,
-        }),
-        {
-          status: 200,
-          headers: {
-            ...corsHeaders,
-            'Content-Type': 'application/json',
-          },
-        }
-      );
+          data: {
+            response: data.choices[0].message.content,
+            model: model,
+            tokens: data.usage.total_tokens
+          }
+        }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          status: 200
+        });
+      } catch (error: any) {
+        return new Response(JSON.stringify({
+          success: false,
+          error: error.message || '处理请求时发生错误'
+        }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          status: 500
+        });
+      }
     }
 
-    // 未找到的路由
-    return new Response(
-      JSON.stringify({
-        success: false,
-        error: '未找到该路由',
-        path: path,
-      }),
-      {
-        status: 404,
-        headers: {
-          ...corsHeaders,
-          'Content-Type': 'application/json',
-        },
-      }
-    );
-  },
+    // 模型列表
+    if (path === '/api/models') {
+      return new Response(JSON.stringify({
+        success: true,
+        data: [
+          { id: 'deepseek-chat', name: 'DeepSeek Chat', provider: 'deepseek' },
+          { id: 'deepseek-coder', name: 'DeepSeek Coder', provider: 'deepseek' }
+        ]
+      }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 200
+      });
+    }
+
+    // 默认响应
+    return new Response(JSON.stringify({
+      success: false,
+      error: '未找到该路由',
+      path: path
+    }), {
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      status: 404
+    });
+  }
 };
