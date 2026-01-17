@@ -1,11 +1,8 @@
 {
   "name": "ai-amasswin-frontend",
-  "version": "1.0.0",
-  "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "npx vite build",
-    "preview": "vite preview"
+    "build": "vite build"
   },
   "dependencies": {
     "vue": "^3.3.8"
@@ -14,5 +11,4 @@
     "@vitejs/plugin-vue": "^4.5.0",
     "vite": "^4.5.0"
   }
-
 }
