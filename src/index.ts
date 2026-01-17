@@ -1,4 +1,4 @@
-// src/index.ts - 完整修复版
+// src/index.ts - 修复版
 export interface Env {
   DEEPSEEK_API_KEY: string;
 }
@@ -12,213 +12,218 @@ export default {
     // 设置CORS头部
     const corsHeaders = {
       'Access-Control-Allow-Origin': '*',
-      'Access-Control-Allow-Methods': 'GET, POST, OPTIONS, PUT, DELETE',
+      'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
       'Access-Control-Allow-Headers': 'Content-Type, Authorization',
     };
 
     // 处理OPTIONS预检请求
     if (method === 'OPTIONS') {
-      return new Response(null, {
-        headers: corsHeaders,
-        status: 204,
+      return new Response(null, { 
+        headers: corsHeaders, 
+        status: 204 
       });
     }
 
-    // 1. 根路径
+    // 根路径
     if (path === '/') {
-      return new Response(
-        JSON.stringify({
-          success: true,
-          message: 'AI.AMASSWIN.COM API 服务运行中',
-          version: '1.0.0',
-          timestamp: new Date().toISOString(),
-        }),
-        {
-          status: 200,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        }
-      );
+      return new Response(JSON.stringify({
+        success: true,
+        message: 'AI.AMASSWIN.COM API 服务运行中',
+        version: '1.0.0',
+        timestamp: new Date().toISOString()
+      }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 200
+      });
     }
 
-    // 2. 健康检查
+    // 健康检查
     if (path === '/health') {
-      return new Response(
-        JSON.stringify({
-          success: true,
-          status: 'OK',
-          service: 'AI.AMASSWIN.COM API',
-          timestamp: new Date().toISOString(),
-        }),
-        {
-          status: 200,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        }
-      );
+      return new Response(JSON.stringify({
+        success: true,
+        status: 'OK',
+        service: 'AI.AMASSWIN.COM API',
+        timestamp: new Date().toISOString()
+      }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 200
+      });
     }
 
-    // 3. API聊天接口 (必须是POST请求)
+    // AI聊天接口
     if (path === '/api/chat') {
+      // 检查请求方法
       if (method !== 'POST') {
-        return new Response(
-          JSON.stringify({
-            success: false,
-            error: '只支持POST请求',
-            method: method,
-            path: path,
-          }),
-          {
-            status: 405,
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-          }
-        );
+        return new Response(JSON.stringify({
+          success: false,
+          error: '只支持POST请求',
+          method: method,
+          path: path
+        }), {
+          status: 405,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        });
       }
 
       try {
         // 解析请求体
-        const { message, model = 'deepseek-chat' } = await request.json();
+        let body: any;
+        try {
+          body = await request.json();
+        } catch (parseError) {
+          return new Response(JSON.stringify({
+            success: false,
+            error: '请求体必须是有效的JSON格式'
+          }), {
+            status: 400,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+          });
+        }
+
+        const { message, model = 'deepseek-chat' } = body;
         
-        if (!message || message.trim() === '') {
-          return new Response(
-            JSON.stringify({
-              success: false,
-              error: '消息内容不能为空',
-            }),
-            {
-              status: 400,
-              headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-            }
-          );
+        // 验证消息内容
+        if (!message || typeof message !== 'string' || message.trim().length === 0) {
+          return new Response(JSON.stringify({
+            success: false,
+            error: '消息内容不能为空'
+          }), {
+            status: 400,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+          });
         }
 
         // 检查API密钥
-        if (!env.DEEPSEEK_API_KEY) {
-          return new Response(
-            JSON.stringify({
-              success: false,
-              error: 'DeepSeek API密钥未配置',
-            }),
-            {
-              status: 500,
-              headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-            }
-          );
+        if (!env.DEEPSEEK_API_KEY || env.DEEPSEEK_API_KEY.trim().length === 0) {
+          console.error('DeepSeek API密钥未配置');
+          return new Response(JSON.stringify({
+            success: false,
+            error: 'API密钥未配置，请联系管理员',
+            code: 'API_KEY_MISSING'
+          }), {
+            status: 500,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+          });
         }
 
         // 调用DeepSeek API
+        console.log('调用DeepSeek API，模型:', model, '消息长度:', message.length);
+        
         const deepseekResponse = await fetch('https://api.deepseek.com/v1/chat/completions', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'Authorization': `Bearer ${env.DEEPSEEK_API_KEY}`,
+            'Authorization': `Bearer ${env.DEEPSEEK_API_KEY.trim()}`
           },
           body: JSON.stringify({
             model: model,
             messages: [
               {
                 role: 'system',
-                content: '你是一个有帮助的AI助手。请用中文回答用户的问题，回答要详细、准确、友好。',
+                content: '你是一个有帮助的AI助手。请用中文回答用户的问题，回答要详细、准确、友好。'
               },
               {
                 role: 'user',
-                content: message,
-              },
+                content: message
+              }
             ],
             max_tokens: 2000,
             temperature: 0.7,
-            stream: false,
-          }),
+            stream: false
+          })
         });
 
-        if (!deepseekResponse.ok) {
-          const errorText = await deepseekResponse.text();
-          console.error('DeepSeek API错误:', deepseekResponse.status, errorText);
-          return new Response(
-            JSON.stringify({
-              success: false,
-              error: `DeepSeek API错误: ${deepseekResponse.status}`,
-              details: errorText.substring(0, 200),
-            }),
-            {
-              status: 502,
-              headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-            }
-          );
-        }
-
-        const deepseekData = await deepseekResponse.json();
+        // 记录响应状态
+        console.log('DeepSeek API响应状态:', deepseekResponse.status);
         
-        return new Response(
-          JSON.stringify({
-            success: true,
-            data: {
-              response: deepseekData.choices[0].message.content,
-              model: model,
-              tokens: deepseekData.usage.total_tokens,
-              timestamp: new Date().toISOString(),
-            },
-          }),
-          {
-            status: 200,
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        if (!deepseekResponse.ok) {
+          let errorText = '';
+          try {
+            errorText = await deepseekResponse.text();
+          } catch (e) {
+            errorText = '无法读取错误响应';
           }
-        );
-      } catch (error) {
-        console.error('处理请求时发生错误:', error);
-        return new Response(
-          JSON.stringify({
+          
+          console.error('DeepSeek API错误:', deepseekResponse.status, errorText);
+          
+          return new Response(JSON.stringify({
             success: false,
-            error: '处理请求时发生错误',
-            details: error.message,
-            timestamp: new Date().toISOString(),
-          }),
-          {
-            status: 500,
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-          }
-        );
-      }
-    }
-
-    // 4. 获取模型列表
-    if (path === '/api/models') {
-      return new Response(
-        JSON.stringify({
-          success: true,
-          data: [
-            {
-              id: 'deepseek-chat',
-              name: 'DeepSeek Chat',
-              provider: 'deepseek',
-              description: '免费中文模型，支持128K上下文',
-            },
-            {
-              id: 'deepseek-coder',
-              name: 'DeepSeek Coder',
-              provider: 'deepseek',
-              description: '专为编程优化的模型',
-            },
-          ],
-        }),
-        {
-          status: 200,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+            error: `DeepSeek API错误: ${deepseekResponse.status}`,
+            details: errorText.substring(0, 200),
+            code: 'DEEPSEEK_API_ERROR'
+          }), {
+            status: 502,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+          });
         }
-      );
+
+        // 解析响应
+        let deepseekData;
+        try {
+          deepseekData = await deepseekResponse.json();
+        } catch (jsonError) {
+          console.error('解析DeepSeek响应失败:', jsonError);
+          return new Response(JSON.stringify({
+            success: false,
+            error: '解析AI响应失败',
+            code: 'RESPONSE_PARSE_ERROR'
+          }), {
+            status: 502,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+          });
+        }
+
+        // 检查响应格式
+        if (!deepseekData.choices || !Array.isArray(deepseekData.choices) || deepseekData.choices.length === 0) {
+          console.error('DeepSeek响应格式异常:', deepseekData);
+          return new Response(JSON.stringify({
+            success: false,
+            error: 'AI响应格式异常',
+            code: 'INVALID_RESPONSE_FORMAT'
+          }), {
+            status: 502,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+          });
+        }
+
+        // 成功响应
+        return new Response(JSON.stringify({
+          success: true,
+          data: {
+            response: deepseekData.choices[0].message.content,
+            model: model,
+            tokens: deepseekData.usage?.total_tokens || 0,
+            timestamp: new Date().toISOString()
+          }
+        }), {
+          status: 200,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        });
+
+      } catch (error: any) {
+        console.error('处理请求时发生未捕获错误:', error);
+        
+        return new Response(JSON.stringify({
+          success: false,
+          error: '服务器内部错误',
+          details: error.message || '未知错误',
+          code: 'INTERNAL_SERVER_ERROR'
+        }), {
+          status: 500,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        });
+      }
     }
 
-    // 5. 未找到的路由
-    return new Response(
-      JSON.stringify({
-        success: false,
-        error: '未找到该路由',
-        path: path,
-        method: method,
-        available_routes: ['/', '/health', '/api/chat', '/api/models'],
-      }),
-      {
-        status: 404,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      }
-    );
-  },
+    // 默认404响应
+    return new Response(JSON.stringify({
+      success: false,
+      error: '未找到该路由',
+      path: path,
+      method: method
+    }), {
+      status: 404,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+    });
+  }
 };
