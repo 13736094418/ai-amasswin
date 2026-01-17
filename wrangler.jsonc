@@ -1,0 +1,12 @@
+{
+  "$schema": "https://raw.githubusercontent.com/cloudflare/workers-sdk/main/packages/wrangler/schema.json",
+  "name": "api-amasswin",
+  "compatibility_date": "2026-01-17",
+  "main": "src/index.ts",
+  "routes": [
+    {
+      "pattern": "api.ai.amasswin.com/*",
+      "zone_name": "amasswin.com"
+    }
+  ]
+}
