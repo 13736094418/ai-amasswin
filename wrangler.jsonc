@@ -1,13 +1,17 @@
 {
-  "$schema": "https://raw.githubusercontent.com/cloudflare/workers-sdk/main/packages/wrangler/schema.json",
-  "name": "api",
-  "compatibility_date": "2026-01-17",
+  "schema": "https://raw.githubusercontent.com/cloudflare/workers-sdk/main/packages/wrangler/schema.json",
+  "名称": "api"
+  "兼容日期": "2026-01-17",
   "main": "src/index.ts",
+"observability": {
+    "enabled": true
+  },
   "routes": [
     {
       "pattern": "api.ai.amasswin.com/*",
       "zone_name": "amasswin.com"
     }
-  ]
+  输入的文本为空，没有可用来翻译的内容。
 
 }
+
