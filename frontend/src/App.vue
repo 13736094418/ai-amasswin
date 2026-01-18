@@ -15,16 +15,6 @@
           <input v-model="searchQuery" type="text" placeholder="搜索" class="search-input" />
         </div>
 
-        <!-- 快捷操作 -->
-        <div class="quick-actions">
-          <button class="action-item" @click="scrollToTop">
-            <span>元宝</span>
-          </button>
-          <button class="action-item" @click="showFavorites = !showFavorites">
-            <span>全部收藏</span>
-          </button>
-        </div>
-
         <!-- 选项分组 -->
         <div class="section">
           <div class="section-header">
@@ -229,7 +219,6 @@ export default {
       selectedModel: 'deepseek-chat',
       sidebarCollapsed: false,
       searchQuery: '',
-      showFavorites: false,
       showAnalysisTools: false,
       currentChatId: null,
       selectedOption: null,
@@ -242,26 +231,44 @@ export default {
         '敏感性分析'
       ],
       analysisOptions: [
-        { id: 'market-research', name: '市场调研' },
-        { id: 'marketing-plan', name: '营销方案' },
-        { id: 'policy-analysis', name: '政策分析' },
-        { id: 'listing-finance', name: '上市金融' },
-        { id: 'competitor-analysis', name: '市场竞品' },
-        { id: 'product-planning', name: '产品规划' },
-        { id: 'structure-design', name: '结构设计' },
-        { id: 'electrical-design', name: '电气设计' },
-        { id: 'electronic-design', name: '电子设计' },
-        { id: 'software-design', name: '软件设计' },
-        { id: 'engineering-design', name: '工程设计' }
+        { id: 'market-research', name: '市场调研', methods: ['PEST分析', '波特五力模型', '市场细分分析', '用户画像分析', '竞品分析矩阵'] },
+        { id: 'marketing-plan', name: '营销方案', methods: ['4P营销理论', 'STP战略', 'AARRR模型', '营销漏斗分析', '品牌定位分析'] },
+        { id: 'policy-analysis', name: '政策分析', methods: ['政策环境分析', '政策影响评估', '政策趋势预测', '政策对比分析', '政策风险评估'] },
+        { id: 'listing-finance', name: '上市金融', methods: ['财务模型分析', '估值分析', '资本结构分析', '现金流分析', '投资回报分析'] },
+        { id: 'competitor-analysis', name: '市场竞品', methods: ['竞品对比矩阵', '功能对比分析', '价格策略分析', '市场份额分析', '竞争优势分析'] },
+        { id: 'product-planning', name: '产品规划', methods: ['产品路线图', '功能优先级分析', '用户需求分析', '产品生命周期', 'MVP设计'] },
+        { id: 'structure-design', name: '结构设计', methods: ['结构力学分析', '有限元分析', '载荷分析', '材料选型分析', '结构优化设计'] },
+        { id: 'electrical-design', name: '电气设计', methods: ['电气系统设计', '配电系统分析', '电气安全分析', '能效分析', '自动化控制设计'] },
+        { id: 'electronic-design', name: '电子设计', methods: ['电路设计分析', 'PCB布局设计', '信号完整性分析', 'EMC分析', '可靠性分析'] },
+        { id: 'software-design', name: '软件设计', methods: ['架构设计', 'UML建模', '系统设计模式', '性能分析', '安全分析'] },
+        { id: 'engineering-design', name: '工程设计', methods: ['工程设计规范', '工艺流程分析', '质量体系分析', '成本效益分析', '风险评估'] },
+        { id: 'strategy-analysis', name: '战略分析', methods: ['SWOT分析', '战略地图', '价值链分析', 'BCG矩阵', 'GE矩阵'] },
+        { id: 'financial-analysis', name: '财务分析', methods: ['财务比率分析', '杜邦分析', '财务预测模型', '敏感性分析', '盈亏平衡分析'] },
+        { id: 'risk-analysis', name: '风险管理', methods: ['风险识别', '风险矩阵', '风险量化分析', '风险应对策略', '风险监控体系'] },
+        { id: 'quality-management', name: '质量管理', methods: ['PDCA循环', '六西格玛', '质量成本分析', 'SPC统计过程控制', 'FMEA失效模式分析'] },
+        { id: 'supply-chain', name: '供应链管理', methods: ['供应链优化', '库存管理分析', '供应商评估', '物流成本分析', '供应链风险评估'] },
+        { id: 'project-management', name: '项目管理', methods: ['项目计划分析', '关键路径法', '资源分配分析', '项目风险评估', '进度控制分析'] },
+        { id: 'innovation-research', name: '创新研究', methods: ['技术路线图', '创新模式分析', '专利分析', '技术成熟度评估', '创新生态分析'] }
       ],
       analysisTools: [
-        { id: 'swot', name: 'SWOT分析' },
-        { id: 'duality', name: '对偶理论' },
-        { id: 'sensitivity', name: '敏感性分析' },
-        { id: 'queuing', name: '排队论' },
-        { id: 'storage', name: '存储论' },
-        { id: 'game', name: '对策论' },
-        { id: 'decision', name: '决策分析' }
+        { id: 'swot', name: 'SWOT分析', type: 'matrix' },
+        { id: 'duality', name: '对偶理论', type: 'theory' },
+        { id: 'sensitivity', name: '敏感性分析', type: 'analysis' },
+        { id: 'queuing', name: '排队论', type: 'theory' },
+        { id: 'storage', name: '存储论', type: 'theory' },
+        { id: 'game', name: '对策论', type: 'theory' },
+        { id: 'decision', name: '决策分析', type: 'analysis' },
+        { id: 'logic-diagram', name: '逻辑图', type: 'diagram' },
+        { id: 'flowchart', name: '流程图', type: 'diagram' },
+        { id: 'fishbone', name: '鱼骨图', type: 'diagram' },
+        { id: 'mindmap', name: '思维导图', type: 'diagram' },
+        { id: 'matrix-table', name: '阵列表', type: 'table' },
+        { id: 'bar-chart', name: '柱状图', type: 'chart' },
+        { id: 'radar-chart', name: '雷达图', type: 'chart' },
+        { id: 'network-diagram', name: '网络图', type: 'diagram' },
+        { id: 'pest', name: 'PEST分析', type: 'matrix' },
+        { id: 'porter-five', name: '波特五力', type: 'diagram' },
+        { id: 'value-chain', name: '价值链', type: 'diagram' }
       ],
       historyList: [],
       downloads: []
@@ -473,10 +480,60 @@ export default {
     },
     selectOption(option) {
       this.selectedOption = option.id
-      this.inputMessage = `请帮我进行${option.name}分析`
+      // 生成包含专业分析方法的提示词
+      const methods = option.methods ? option.methods.join('、') : ''
+      let prompt = `请帮我进行${option.name}分析。`
+      if (methods) {
+        prompt += `建议使用以下专业分析方法：${methods}。请根据分析内容自动生成相应的可视化图表，如逻辑图、流程图、鱼骨图、思维导图、阵列表、柱状图、雷达图或网络图等，以更好地展示分析结果。`
+      }
+      this.inputMessage = prompt
     },
     insertAnalysisTool(tool) {
-      this.inputMessage += `请使用${tool.name}方法进行分析。`
+      // 根据工具类型生成相应的提示词
+      let prompt = ''
+      switch(tool.type) {
+        case 'diagram':
+          if (tool.id === 'logic-diagram') {
+            prompt = `请使用逻辑图方法进行分析，并生成逻辑图可视化展示。`
+          } else if (tool.id === 'flowchart') {
+            prompt = `请使用流程图方法进行分析，并生成流程图可视化展示。`
+          } else if (tool.id === 'fishbone') {
+            prompt = `请使用鱼骨图（因果分析图）方法进行分析，并生成鱼骨图可视化展示。`
+          } else if (tool.id === 'mindmap') {
+            prompt = `请使用思维导图方法进行分析，并生成思维导图可视化展示。`
+          } else if (tool.id === 'network-diagram') {
+            prompt = `请使用网络图方法进行分析，并生成网络图可视化展示。`
+          } else if (tool.id === 'porter-five') {
+            prompt = `请使用波特五力模型进行分析，并生成波特五力图可视化展示。`
+          } else if (tool.id === 'value-chain') {
+            prompt = `请使用价值链分析，并生成价值链图可视化展示。`
+          } else {
+            prompt = `请使用${tool.name}方法进行分析，并生成相应的图表可视化展示。`
+          }
+          break
+        case 'chart':
+          if (tool.id === 'bar-chart') {
+            prompt = `请使用柱状图进行数据可视化分析，并提供相应的数据表格。`
+          } else if (tool.id === 'radar-chart') {
+            prompt = `请使用雷达图进行多维度对比分析，并提供相应的数据表格。`
+          } else {
+            prompt = `请使用${tool.name}进行数据可视化分析。`
+          }
+          break
+        case 'table':
+          prompt = `请使用阵列表方法进行分析，并以表格形式展示分析结果。`
+          break
+        case 'matrix':
+          prompt = `请使用${tool.name}方法进行分析，并以矩阵表格形式展示分析结果。`
+          break
+        default:
+          prompt = `请使用${tool.name}方法进行分析，并根据分析内容自动生成合适的可视化图表。`
+      }
+      if (this.inputMessage.trim()) {
+        this.inputMessage += ' ' + prompt
+      } else {
+        this.inputMessage = prompt
+      }
     },
     clearHistory() {
       if (confirm('确定要清空所有对话记录吗？')) {
@@ -688,27 +745,6 @@ export default {
   border: 1px solid #e5e7eb;
   border-radius: 6px;
   font-size: 14px;
-}
-
-.quick-actions {
-  margin-bottom: 16px;
-}
-
-.action-item {
-  width: 100%;
-  padding: 8px 12px;
-  text-align: left;
-  background: none;
-  border: none;
-  border-radius: 6px;
-  cursor: pointer;
-  font-size: 14px;
-  color: #374151;
-  margin-bottom: 4px;
-}
-
-.action-item:hover {
-  background: #f3f4f6;
 }
 
 .section {
