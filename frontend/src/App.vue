@@ -537,6 +537,11 @@ export default {
       }
     },
     saveHistory() {
+      // 保存当前聊天的消息
+      if (this.currentChatId) {
+        localStorage.setItem(`chatHistory_${this.currentChatId}`, JSON.stringify(this.messages))
+      }
+      // 同时保存为当前聊天记录（向后兼容）
       localStorage.setItem('chatHistory', JSON.stringify(this.messages.slice(-50)))
       // 保存聊天列表
       if (!this.currentChatId) {
@@ -578,8 +583,19 @@ export default {
     loadChat(chatId) {
       // 加载指定的聊天记录
       this.currentChatId = chatId
-      // 这里可以从localStorage或其他存储加载具体聊天内容
-      this.loadHistory()
+      // 从localStorage加载特定聊天的消息
+      const chatHistory = localStorage.getItem(`chatHistory_${chatId}`)
+      if (chatHistory) {
+        try {
+          this.messages = JSON.parse(chatHistory)
+        } catch (e) {
+          console.error('加载聊天记录失败:', e)
+          this.messages = []
+        }
+      } else {
+        // 如果没有特定聊天记录，加载当前聊天
+        this.loadHistory()
+      }
     },
     deleteHistory(chatId) {
       if (confirm('确定要删除这条记录吗？')) {
@@ -624,6 +640,21 @@ export default {
     },
     regenerateMessage(messageId) {
       // 重新生成消息的逻辑
+      const message = this.messages.find(m => m.id === messageId)
+      if (message && message.role === 'assistant') {
+        // 找到用户的上一条消息
+        const messageIndex = this.messages.findIndex(m => m.id === messageId)
+        if (messageIndex > 0) {
+          const userMessage = this.messages[messageIndex - 1]
+          if (userMessage && userMessage.role === 'user') {
+            // 删除当前AI消息
+            this.messages.splice(messageIndex, 1)
+            // 重新发送用户消息
+            this.inputMessage = userMessage.content
+            this.sendMessage()
+          }
+        }
+      }
     },
     exportToPDF() {
       const doc = new jsPDF()
