@@ -4,7 +4,7 @@
     <aside class="sidebar" :class="{ collapsed: sidebarCollapsed }">
       <div class="sidebar-header">
         <div class="logo-container">
-          <img src="/logo.png" alt="AMASSWIN" class="sidebar-logo" />
+          <div class="logo-icon">🎯</div>
           <span v-if="!sidebarCollapsed" class="logo-text">AI.AMASSWIN.COM</span>
         </div>
         <button @click="sidebarCollapsed = !sidebarCollapsed" class="toggle-btn">
@@ -88,10 +88,6 @@
       <!-- 顶部栏 -->
       <header class="top-header">
         <div class="header-left">
-          <select v-model="selectedModel" class="model-select">
-            <option value="deepseek-chat">DeepSeek Chat</option>
-            <option value="deepseek-coder">DeepSeek Coder</option>
-          </select>
           <button @click="clearHistory" class="clear-btn">清空对话</button>
         </div>
         <div class="header-right">
@@ -105,9 +101,7 @@
       <div class="chat-area" ref="chatArea">
         <!-- 欢迎消息 -->
         <div v-if="messages.length === 0" class="welcome-message">
-          <div class="welcome-logo">
-            <img src="/logo.png" alt="AMASSWIN Logo" class="logo-image" />
-          </div>
+          <div class="welcome-icon">🤖</div>
           <h2>欢迎使用 AI.AMASSWIN.COM</h2>
           <p>我是您的AI助手，可以为您提供专业的分析和咨询服务。</p>
         </div>
@@ -166,6 +160,15 @@
       <!-- 输入区域 -->
       <div class="input-area">
         <div v-if="showAnalysisTools" class="analysis-tools">
+          <!-- 模型选择器 -->
+          <div class="model-selector">
+            <label class="model-label">模型：</label>
+            <select v-model="selectedModel" class="model-select-inline">
+              <option value="deepseek-chat">DeepSeek Chat</option>
+              <option value="deepseek-coder">DeepSeek Coder</option>
+            </select>
+          </div>
+          <!-- 分析工具按钮 -->
           <button 
             v-for="tool in analysisTools" 
             :key="tool.id"
@@ -709,10 +712,9 @@ export default {
   gap: 8px;
 }
 
-.sidebar-logo {
-  height: 32px;
-  width: auto;
-  object-fit: contain;
+.logo-icon {
+  font-size: 20px;
+  line-height: 1;
 }
 
 .logo-text {
@@ -881,7 +883,6 @@ export default {
   gap: 8px;
 }
 
-.model-select,
 .clear-btn,
 .tool-btn {
   padding: 6px 12px;
@@ -892,7 +893,6 @@ export default {
   font-size: 14px;
 }
 
-.model-select:hover,
 .clear-btn:hover,
 .tool-btn:hover {
   background: #f9fafb;
@@ -911,17 +911,9 @@ export default {
   color: #6b7280;
 }
 
-.welcome-logo {
-  margin-bottom: 24px;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-}
-
-.logo-image {
-  height: 80px;
-  width: auto;
-  object-fit: contain;
+.welcome-icon {
+  font-size: 48px;
+  margin-bottom: 16px;
 }
 
 .welcome-message h2 {
@@ -1131,9 +1123,40 @@ export default {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
+  align-items: center;
   margin-bottom: 12px;
   padding-bottom: 12px;
   border-bottom: 1px solid #e5e7eb;
+}
+
+.model-selector {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 12px;
+  background: #f3f4f6;
+  border: 1px solid #e5e7eb;
+  border-radius: 16px;
+}
+
+.model-label {
+  font-size: 13px;
+  color: #6b7280;
+  margin: 0;
+}
+
+.model-select-inline {
+  background: transparent;
+  border: none;
+  font-size: 13px;
+  color: #374151;
+  cursor: pointer;
+  padding: 2px 4px;
+  outline: none;
+}
+
+.model-select-inline:focus {
+  outline: none;
 }
 
 .tool-tag {
