@@ -3,7 +3,10 @@
     <!-- 左侧边栏 -->
     <aside class="sidebar" :class="{ collapsed: sidebarCollapsed }">
       <div class="sidebar-header">
-        <div class="logo">🎯 AI.AMASSWIN.COM</div>
+        <div class="logo-container">
+          <img src="/logo.png" alt="AMASSWIN" class="sidebar-logo" />
+          <span v-if="!sidebarCollapsed" class="logo-text">AI.AMASSWIN.COM</span>
+        </div>
         <button @click="sidebarCollapsed = !sidebarCollapsed" class="toggle-btn">
           {{ sidebarCollapsed ? '▶' : '◀' }}
         </button>
@@ -102,14 +105,11 @@
       <div class="chat-area" ref="chatArea">
         <!-- 欢迎消息 -->
         <div v-if="messages.length === 0" class="welcome-message">
-          <div class="welcome-icon">🤖</div>
+          <div class="welcome-logo">
+            <img src="/logo.png" alt="AMASSWIN Logo" class="logo-image" />
+          </div>
           <h2>欢迎使用 AI.AMASSWIN.COM</h2>
           <p>我是您的AI助手，可以为您提供专业的分析和咨询服务。</p>
-          <div class="quick-questions">
-            <button v-for="(q, i) in quickQuestions" :key="i" @click="sendQuickQuestion(q)">
-              {{ q }}
-            </button>
-          </div>
         </div>
 
         <!-- 消息列表 -->
@@ -224,12 +224,6 @@ export default {
       selectedOption: null,
       apiBaseUrl: 'https://api.ai.amasswin.com',
       chartInstances: new Map(),
-      quickQuestions: [
-        '市场调研分析',
-        'SWOT分析',
-        '对偶理论分析',
-        '敏感性分析'
-      ],
       analysisOptions: [
         { id: 'market-research', name: '市场调研', methods: ['PEST分析', '波特五力模型', '市场细分分析', '用户画像分析', '竞品分析矩阵'] },
         { id: 'marketing-plan', name: '营销方案', methods: ['4P营销理论', 'STP战略', 'AARRR模型', '营销漏斗分析', '品牌定位分析'] },
@@ -467,10 +461,6 @@ export default {
           }
         })
       }
-    },
-    sendQuickQuestion(question) {
-      this.inputMessage = question
-      this.sendMessage()
     },
     handleEnter(e) {
       if (e.key === 'Enter' && !e.shiftKey) {
@@ -713,7 +703,19 @@ export default {
   border-bottom: 1px solid #e5e7eb;
 }
 
-.logo {
+.logo-container {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.sidebar-logo {
+  height: 32px;
+  width: auto;
+  object-fit: contain;
+}
+
+.logo-text {
   font-size: 16px;
   font-weight: 600;
   color: #1f2937;
@@ -909,38 +911,23 @@ export default {
   color: #6b7280;
 }
 
-.welcome-icon {
-  font-size: 48px;
-  margin-bottom: 16px;
+.welcome-logo {
+  margin-bottom: 24px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.logo-image {
+  height: 80px;
+  width: auto;
+  object-fit: contain;
 }
 
 .welcome-message h2 {
   font-size: 24px;
   margin-bottom: 12px;
   color: #1f2937;
-}
-
-.quick-questions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  justify-content: center;
-  margin-top: 24px;
-}
-
-.quick-questions button {
-  padding: 8px 16px;
-  background: #ffffff;
-  border: 1px solid #e5e7eb;
-  border-radius: 8px;
-  cursor: pointer;
-  font-size: 14px;
-  color: #374151;
-}
-
-.quick-questions button:hover {
-  background: #f3f4f6;
-  border-color: #d1d5db;
 }
 
 .message {
