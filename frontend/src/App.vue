@@ -42,15 +42,15 @@
             <span>聊天</span>
           </div>
           <div class="history-list">
-            <button
+            <div
               v-for="history in filteredHistory"
               :key="history.id"
               :class="['history-item', { active: currentChatId === history.id }]"
               @click="loadChat(history.id)"
             >
               <span>{{ history.title || formatHistoryTitle(history) }}</span>
-              <button @click.stop="deleteHistory(history.id)" class="delete-btn">×</button>
-            </button>
+              <span @click.stop="deleteHistory(history.id)" class="delete-btn">×</span>
+            </div>
           </div>
         </div>
 
@@ -91,6 +91,9 @@
           <button @click="clearHistory" class="clear-btn">清空对话</button>
         </div>
         <div class="header-right">
+          <button @click="showContextLinks = !showContextLinks" class="tool-btn">
+            {{ showContextLinks ? '隐藏关联' : '显示关联' }}
+          </button>
           <button @click="showAnalysisTools = !showAnalysisTools" class="tool-btn">
             {{ showAnalysisTools ? '隐藏工具' : '分析工具' }}
           </button>
@@ -107,7 +110,7 @@
         </div>
 
         <!-- 消息列表 -->
-        <div v-for="message in messages" :key="message.id" :class="['message', message.role]">
+        <div v-for="message in messages" :key="message.id" :class="['message', message.role]" :data-message-id="message.id">
           <div class="message-avatar">
             {{ message.role === 'user' ? '👤' : '🤖' }}
           </div>
@@ -124,7 +127,22 @@
             </div>
             <!-- Mermaid图表 -->
             <div v-if="message.mermaid" class="mermaid-container">
-              <div class="mermaid" :id="'mermaid-' + message.id"></div>
+              <div class="mermaid-header">
+                <div class="mermaid-title">
+                  <span class="chart-icon">{{ getChartIcon(message.mermaid) }}</span>
+                  {{ getChartTitle(message.mermaid) }}
+                </div>
+                <div class="mermaid-actions">
+                  <button @click="zoomIn(message.id)" class="mermaid-action-btn" title="放大">🔍+</button>
+                  <button @click="zoomOut(message.id)" class="mermaid-action-btn" title="缩小">🔍-</button>
+                  <button @click="resetZoom(message.id)" class="mermaid-action-btn" title="重置缩放">🔄</button>
+                  <button @click="fullscreenMermaid(message.id)" class="mermaid-action-btn" title="全屏">⛶</button>
+                  <button @click="downloadMermaidAsImage(message.id)" class="mermaid-action-btn" title="下载图片">📥</button>
+                </div>
+              </div>
+              <div class="mermaid-wrapper" :id="'mermaid-wrapper-' + message.id">
+                <div class="mermaid" :id="'mermaid-' + message.id"></div>
+              </div>
             </div>
             <!-- 表格 -->
             <div v-if="message.tables && message.tables.length" class="tables-container">
@@ -142,6 +160,26 @@
               </table>
             </div>
             <div class="message-time">{{ formatTime(message.timestamp) }}</div>
+            <!-- 上下文关联 -->
+            <div v-if="showContextLinks && getRelatedMessages(message.id).length" class="context-links">
+              <div class="context-header">
+                <span class="context-icon">🔗</span>
+                <span class="context-title">相关上下文</span>
+              </div>
+              <div class="related-messages">
+                <button
+                  v-for="relatedMsg in getRelatedMessages(message.id)"
+                  :key="relatedMsg.id"
+                  @click="scrollToMessage(relatedMsg.id)"
+                  class="related-message-btn"
+                  :title="relatedMsg.content.substring(0, 100) + '...'"
+                >
+                  <span class="related-role">{{ relatedMsg.role === 'user' ? '用户' : 'AI' }}</span>
+                  <span class="related-content">{{ relatedMsg.content.substring(0, 50) }}...</span>
+                  <span class="related-time">{{ formatTime(relatedMsg.timestamp) }}</span>
+                </button>
+              </div>
+            </div>
             <div class="message-actions">
               <button @click="copyMessage(message.content)" class="action-icon" title="复制">📋</button>
               <button @click="regenerateMessage(message.id)" class="action-icon" title="重新生成">🔄</button>
@@ -211,6 +249,7 @@ import * as echarts from 'echarts'
 import mermaid from 'mermaid'
 import * as XLSX from 'xlsx'
 import jsPDF from 'jspdf'
+import html2canvas from 'html2canvas'
 
 export default {
   name: 'ChatApp',
@@ -268,7 +307,12 @@ export default {
         { id: 'value-chain', name: '价值链', type: 'diagram' }
       ],
       historyList: [],
-      downloads: []
+      downloads: [],
+      mermaidZoomLevels: new Map(), // 存储每个Mermaid图表的缩放级别
+      fullscreenMermaidId: null, // 当前全屏的Mermaid图表ID
+      messageVectors: new Map(), // 存储消息的向量特征
+      contextLinks: new Map(), // 存储消息间的关联关系
+      showContextLinks: true // 是否显示上下文关联
     }
   },
   computed: {
@@ -308,8 +352,31 @@ export default {
     initMermaid() {
       mermaid.initialize({ 
         startOnLoad: false,
-        theme: 'default',
-        securityLevel: 'loose'
+        theme: 'base',
+        themeVariables: {
+          primaryColor: '#3b82f6',
+          primaryTextColor: '#ffffff',
+          primaryBorderColor: '#2563eb',
+          lineColor: '#6b7280',
+          sectionBkgColor: '#f8fafc',
+          altSectionBkgColor: '#ffffff',
+          sectionBorderColor: '#e5e7eb',
+          gridColor: '#f1f5f9',
+          tertiaryColor: '#f1f5f9',
+          fontFamily: '"Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif',
+          fontSize: '14px'
+        },
+        flowchart: {
+          useMaxWidth: true,
+          htmlLabels: true,
+          curve: 'basis',
+          nodeSpacing: 50,
+          rankSpacing: 50,
+          diagramPadding: 20,
+          padding: 15
+        },
+        securityLevel: 'loose',
+        fontFamily: '"Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif'
       })
     },
     renderMarkdown(content) {
@@ -318,6 +385,7 @@ export default {
       this.$nextTick(() => {
         this.parseAndRenderCharts(content)
         this.parseMermaid(content)
+        this.addCodeCopyButtons()
       })
       return html
     },
@@ -331,19 +399,95 @@ export default {
       const mermaidRegex = /```mermaid\n([\s\S]*?)```/g
       let match
       while ((match = mermaidRegex.exec(content)) !== null) {
+        const chartType = this.detectChartType(match[1])
         const id = 'mermaid-' + Date.now() + '-' + Math.random()
         this.$nextTick(() => {
           const element = document.getElementById(id)
           if (element) {
-            mermaid.render(id, match[1]).then(result => {
+            // 根据图表类型应用不同的配置
+            let config = {}
+            if (chartType === 'mindmap') {
+              config = {
+                theme: 'base',
+                themeVariables: {
+                  primaryColor: '#10b981',
+                  primaryTextColor: '#ffffff',
+                  primaryBorderColor: '#059669',
+                  lineColor: '#6b7280',
+                  sectionBkgColor: '#f0fdf4',
+                  altSectionBkgColor: '#ffffff',
+                  gridColor: '#f0fdf4'
+                }
+              }
+            } else if (chartType === 'flowchart') {
+              config = {
+                theme: 'base',
+                themeVariables: {
+                  primaryColor: '#3b82f6',
+                  primaryTextColor: '#ffffff',
+                  primaryBorderColor: '#2563eb',
+                  lineColor: '#6b7280',
+                  sectionBkgColor: '#eff6ff',
+                  altSectionBkgColor: '#ffffff',
+                  gridColor: '#eff6ff'
+                }
+              }
+            }
+            
+            mermaid.render(id, match[1], config).then(result => {
               if (element) {
                 element.innerHTML = result.svg
+                // 为SVG添加样式类
+                const svg = element.querySelector('svg')
+                if (svg) {
+                  svg.classList.add('mermaid-svg', `mermaid-${chartType}`)
+                }
               }
             }).catch(err => {
               console.error('Mermaid渲染失败:', err)
             })
           }
         })
+      }
+    },
+    // 检测图表类型
+    detectChartType(mermaidCode) {
+      const code = mermaidCode.toLowerCase().trim()
+      if (code.startsWith('mindmap') || code.includes('mindmap')) {
+        return 'mindmap'
+      } else if (code.startsWith('flowchart') || code.includes('flowchart') || code.startsWith('graph')) {
+        return 'flowchart'
+      } else if (code.startsWith('sequence')) {
+        return 'sequence'
+      } else if (code.startsWith('gantt')) {
+        return 'gantt'
+      } else if (code.startsWith('pie') || code.startsWith('piechart')) {
+        return 'pie'
+      }
+      return 'flowchart' // 默认类型
+    },
+    // 获取图表图标
+    getChartIcon(mermaidCode) {
+      const chartType = this.detectChartType(mermaidCode)
+      switch (chartType) {
+        case 'mindmap': return '🧠'
+        case 'flowchart': return '📊'
+        case 'sequence': return '📈'
+        case 'gantt': return '📅'
+        case 'pie': return '🥧'
+        default: return '📊'
+      }
+    },
+    // 获取图表标题
+    getChartTitle(mermaidCode) {
+      const chartType = this.detectChartType(mermaidCode)
+      switch (chartType) {
+        case 'mindmap': return '思维导图'
+        case 'flowchart': return '流程图'
+        case 'sequence': return '时序图'
+        case 'gantt': return '甘特图'
+        case 'pie': return '饼图'
+        default: return '图表'
       }
     },
     setChartRef(el, messageId, chartIdx) {
@@ -404,6 +548,7 @@ export default {
           this.messages.push(aiMessage)
           this.$nextTick(() => {
             this.renderChartsForMessage(aiMessage)
+            this.buildContextLinks() // 重新构建上下文关联
           })
         } else {
           throw new Error(data.error || '请求失败')
@@ -456,8 +601,43 @@ export default {
         this.$nextTick(() => {
           const mermaidEl = document.getElementById('mermaid-' + message.id)
           if (mermaidEl && !mermaidEl.innerHTML) {
-            mermaid.render('mermaid-' + message.id, message.mermaid).then(result => {
+            const chartType = this.detectChartType(message.mermaid)
+            let config = {}
+            if (chartType === 'mindmap') {
+              config = {
+                theme: 'base',
+                themeVariables: {
+                  primaryColor: '#10b981',
+                  primaryTextColor: '#ffffff',
+                  primaryBorderColor: '#059669',
+                  lineColor: '#6b7280',
+                  sectionBkgColor: '#f0fdf4',
+                  altSectionBkgColor: '#ffffff',
+                  gridColor: '#f0fdf4'
+                }
+              }
+            } else if (chartType === 'flowchart') {
+              config = {
+                theme: 'base',
+                themeVariables: {
+                  primaryColor: '#3b82f6',
+                  primaryTextColor: '#ffffff',
+                  primaryBorderColor: '#2563eb',
+                  lineColor: '#6b7280',
+                  sectionBkgColor: '#eff6ff',
+                  altSectionBkgColor: '#ffffff',
+                  gridColor: '#eff6ff'
+                }
+              }
+            }
+            
+            mermaid.render('mermaid-' + message.id, message.mermaid, config).then(result => {
               mermaidEl.innerHTML = result.svg
+              // 为SVG添加样式类
+              const svg = mermaidEl.querySelector('svg')
+              if (svg) {
+                svg.classList.add('mermaid-svg', `mermaid-${chartType}`)
+              }
             }).catch(err => {
               console.error('Mermaid渲染失败:', err)
             })
@@ -567,6 +747,9 @@ export default {
       if (saved) {
         try {
           this.messages = JSON.parse(saved)
+          this.$nextTick(() => {
+            this.buildContextLinks() // 加载历史记录后构建上下文关联
+          })
         } catch (e) {
           console.error('加载历史记录失败:', e)
         }
@@ -694,6 +877,221 @@ export default {
         this.exportToPDF()
       } else if (download.type === 'Excel') {
         this.exportToExcel()
+      }
+    },
+    // Mermaid图表控制方法
+    zoomIn(messageId) {
+      const wrapper = document.getElementById(`mermaid-wrapper-${messageId}`)
+      if (wrapper) {
+        const currentZoom = this.mermaidZoomLevels.get(messageId) || 1
+        const newZoom = Math.min(currentZoom * 1.2, 3) // 最大放大3倍
+        this.mermaidZoomLevels.set(messageId, newZoom)
+        wrapper.style.transform = `scale(${newZoom})`
+        wrapper.style.transformOrigin = 'top left'
+      }
+    },
+    zoomOut(messageId) {
+      const wrapper = document.getElementById(`mermaid-wrapper-${messageId}`)
+      if (wrapper) {
+        const currentZoom = this.mermaidZoomLevels.get(messageId) || 1
+        const newZoom = Math.max(currentZoom / 1.2, 0.5) // 最小缩小到0.5倍
+        this.mermaidZoomLevels.set(messageId, newZoom)
+        wrapper.style.transform = `scale(${newZoom})`
+        wrapper.style.transformOrigin = 'top left'
+      }
+    },
+    resetZoom(messageId) {
+      const wrapper = document.getElementById(`mermaid-wrapper-${messageId}`)
+      if (wrapper) {
+        this.mermaidZoomLevels.set(messageId, 1)
+        wrapper.style.transform = 'scale(1)'
+        wrapper.style.transformOrigin = 'top left'
+      }
+    },
+    fullscreenMermaid(messageId) {
+      const wrapper = document.getElementById(`mermaid-wrapper-${messageId}`)
+      if (wrapper) {
+        if (this.fullscreenMermaidId === messageId) {
+          // 退出全屏
+          document.exitFullscreen().catch(err => console.error('退出全屏失败:', err))
+          this.fullscreenMermaidId = null
+        } else {
+          // 进入全屏
+          wrapper.requestFullscreen().then(() => {
+            this.fullscreenMermaidId = messageId
+          }).catch(err => console.error('进入全屏失败:', err))
+        }
+      }
+    },
+    async downloadMermaidAsImage(messageId) {
+      const mermaidEl = document.getElementById(`mermaid-${messageId}`)
+      if (mermaidEl) {
+        try {
+          // 显示加载提示
+          const loadingToast = document.createElement('div')
+          loadingToast.className = 'copy-notification'
+          loadingToast.textContent = '正在生成图片...'
+          document.body.appendChild(loadingToast)
+
+          // 使用html2canvas将SVG转换为canvas，然后转换为PNG
+          const canvas = await html2canvas(mermaidEl, {
+            backgroundColor: '#ffffff',
+            scale: 2, // 提高分辨率
+            useCORS: true,
+            allowTaint: true,
+            width: mermaidEl.offsetWidth,
+            height: mermaidEl.offsetHeight
+          })
+
+          // 将canvas转换为blob
+          canvas.toBlob((blob) => {
+            if (blob) {
+              const url = URL.createObjectURL(blob)
+              const link = document.createElement('a')
+              link.href = url
+              link.download = `chart_${messageId}_${new Date().toISOString().split('T')[0]}.png`
+              document.body.appendChild(link)
+              link.click()
+              document.body.removeChild(link)
+              URL.revokeObjectURL(url)
+
+              // 更新提示信息
+              loadingToast.textContent = '图片已下载！'
+              setTimeout(() => {
+                document.body.removeChild(loadingToast)
+              }, 2000)
+            } else {
+              document.body.removeChild(loadingToast)
+              alert('生成图片失败，请稍后重试')
+            }
+          }, 'image/png', 0.9)
+
+        } catch (error) {
+          console.error('下载图片失败:', error)
+          // 移除加载提示
+          const loadingToast = document.querySelector('.copy-notification')
+          if (loadingToast) {
+            document.body.removeChild(loadingToast)
+          }
+          alert('下载失败，请稍后重试')
+        }
+      } else {
+        alert('未找到图表内容')
+      }
+    },
+    // 向量特征和上下文关联方法
+    // 生成消息的向量特征（简化版，使用关键词提取）
+    generateMessageVector(content) {
+      const words = content.toLowerCase().split(/\s+/).filter(word => word.length > 1)
+      const vector = {}
+      
+      // 统计词频
+      words.forEach(word => {
+        vector[word] = (vector[word] || 0) + 1
+      })
+      
+      return vector
+    },
+    
+    // 计算两个向量的余弦相似度
+    calculateSimilarity(vector1, vector2) {
+      const words = new Set([...Object.keys(vector1), ...Object.keys(vector2)])
+      let dotProduct = 0
+      let norm1 = 0
+      let norm2 = 0
+      
+      words.forEach(word => {
+        const v1 = vector1[word] || 0
+        const v2 = vector2[word] || 0
+        dotProduct += v1 * v2
+        norm1 += v1 * v1
+        norm2 += v2 * v2
+      })
+      
+      if (norm1 === 0 || norm2 === 0) return 0
+      return dotProduct / (Math.sqrt(norm1) * Math.sqrt(norm2))
+    },
+    
+    // 建立消息间的关联
+    buildContextLinks() {
+      this.contextLinks.clear()
+      
+      this.messages.forEach((message, index) => {
+        const currentVector = this.generateMessageVector(message.content)
+        this.messageVectors.set(message.id, currentVector)
+        
+        const relatedMessages = []
+        
+        // 查找前面的相关消息
+        for (let i = index - 1; i >= Math.max(0, index - 5); i--) {
+          const prevMessage = this.messages[i]
+          const prevVector = this.messageVectors.get(prevMessage.id) || this.generateMessageVector(prevMessage.content)
+          
+          const similarity = this.calculateSimilarity(currentVector, prevVector)
+          
+          if (similarity > 0.1) { // 相似度阈值
+            relatedMessages.push({
+              ...prevMessage,
+              similarity: similarity
+            })
+          }
+        }
+        
+        // 按相似度排序
+        relatedMessages.sort((a, b) => b.similarity - a.similarity)
+        
+        if (relatedMessages.length > 0) {
+          this.contextLinks.set(message.id, relatedMessages.slice(0, 3)) // 最多显示3个相关消息
+        }
+      })
+    },
+    
+    // 获取相关消息
+    getRelatedMessages(messageId) {
+      return this.contextLinks.get(messageId) || []
+    },
+    
+    // 滚动到指定消息
+    scrollToMessage(messageId) {
+      const messageEl = document.querySelector(`[data-message-id="${messageId}"]`)
+      if (messageEl) {
+        messageEl.scrollIntoView({ behavior: 'smooth', block: 'center' })
+        // 添加高亮效果
+        messageEl.classList.add('highlight-message')
+        setTimeout(() => {
+          messageEl.classList.remove('highlight-message')
+        }, 2000)
+      }
+    },
+    // 复制代码到剪贴板
+    async copyCodeToClipboard(text) {
+      try {
+        await navigator.clipboard.writeText(text)
+        // 显示临时提示
+        const notification = document.createElement('div')
+        notification.className = 'copy-notification'
+        notification.textContent = '代码已复制！'
+        document.body.appendChild(notification)
+        setTimeout(() => {
+          document.body.removeChild(notification)
+        }, 2000)
+      } catch (error) {
+        console.error('复制失败:', error)
+        // 降级方案
+        const textArea = document.createElement('textarea')
+        textArea.value = text
+        document.body.appendChild(textArea)
+        textArea.select()
+        document.execCommand('copy')
+        document.body.removeChild(textArea)
+        
+        const notification = document.createElement('div')
+        notification.className = 'copy-notification'
+        notification.textContent = '代码已复制！'
+        document.body.appendChild(notification)
+        setTimeout(() => {
+          document.body.removeChild(notification)
+        }, 2000)
       }
     }
   }
@@ -1085,7 +1483,240 @@ export default {
 
 .mermaid-container {
   margin: 16px 0;
+  border: 2px solid #e5e7eb;
+  border-radius: 12px;
+  background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+  overflow: hidden;
+}
+
+.mermaid-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 16px;
+  background: linear-gradient(135deg, #f1f5f9 0%, #e2e8f0 100%);
+  border-bottom: 1px solid #cbd5e1;
+}
+
+.mermaid-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: #334155;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.mermaid-title::before {
+  content: '📊';
+  font-size: 18px;
+}
+
+.mermaid-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.mermaid-action-btn {
+  background: rgba(255, 255, 255, 0.8);
+  border: 1px solid #cbd5e1;
+  cursor: pointer;
+  padding: 6px 10px;
+  border-radius: 6px;
+  font-size: 14px;
+  color: #475569;
+  transition: all 0.2s ease;
+  backdrop-filter: blur(4px);
+}
+
+.mermaid-action-btn:hover {
+  background: #ffffff;
+  color: #1e293b;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
+}
+
+.mermaid-wrapper {
+  padding: 24px;
+  overflow: auto;
+  background: #ffffff;
+  transition: transform 0.3s ease;
+  min-height: 200px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.mermaid {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  width: 100%;
+  min-height: 200px;
+}
+
+.mermaid svg {
+  max-width: 100%;
+  height: auto;
+  border-radius: 8px;
+  filter: drop-shadow(0 2px 8px rgba(0, 0, 0, 0.06));
+}
+
+/* 不同图表类型的样式 */
+.mermaid-mindmap {
+  /* 思维导图的特殊样式 */
+}
+
+.mermaid-flowchart {
+  /* 流程图的特殊样式 */
+}
+
+.mermaid-sequence {
+  /* 时序图的特殊样式 */
+}
+
+.chart-icon {
+  font-size: 18px;
+  margin-right: 8px;
+}
+
+/* 代码复制按钮样式 */
+pre {
+  position: relative;
+  background: #1f2937;
+  border-radius: 8px;
+  padding: 16px;
+  margin: 16px 0;
   overflow-x: auto;
+}
+
+.code-copy-btn {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 4px;
+  color: #ffffff;
+  cursor: pointer;
+  padding: 4px 8px;
+  font-size: 12px;
+  transition: background-color 0.2s;
+  z-index: 10;
+}
+
+.code-copy-btn:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+/* 复制成功提示样式 */
+.copy-notification {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  background: #10b981;
+  color: white;
+  padding: 12px 16px;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  z-index: 1000;
+  font-size: 14px;
+  animation: slideIn 0.3s ease-out;
+}
+
+/* 上下文关联样式 */
+.context-links {
+  margin-top: 12px;
+  padding: 12px;
+  background: rgba(59, 130, 246, 0.05);
+  border: 1px solid rgba(59, 130, 246, 0.2);
+  border-radius: 8px;
+}
+
+.context-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #475569;
+}
+
+.context-icon {
+  font-size: 14px;
+}
+
+.context-title {
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.related-messages {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.related-message-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: rgba(255, 255, 255, 0.8);
+  border: 1px solid rgba(59, 130, 246, 0.3);
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  text-align: left;
+  font-size: 13px;
+}
+
+.related-message-btn:hover {
+  background: rgba(59, 130, 246, 0.1);
+  border-color: rgba(59, 130, 246, 0.5);
+  transform: translateX(2px);
+}
+
+.related-role {
+  font-weight: 600;
+  color: #374151;
+  min-width: 32px;
+}
+
+.related-content {
+  flex: 1;
+  color: #6b7280;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.related-time {
+  font-size: 11px;
+  color: #9ca3af;
+  margin-left: auto;
+}
+
+/* 消息高亮效果 */
+.message.highlight-message {
+  animation: highlightPulse 2s ease-in-out;
+}
+
+@keyframes highlightPulse {
+  0% {
+    background-color: rgba(59, 130, 246, 0.1);
+    box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.4);
+  }
+  50% {
+    background-color: rgba(59, 130, 246, 0.2);
+    box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.2);
+  }
+  100% {
+    background-color: transparent;
+    box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.4);
+  }
 }
 
 .data-table {
